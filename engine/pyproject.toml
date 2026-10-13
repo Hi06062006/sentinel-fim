@@ -1,0 +1,19 @@
+[project]
+name = "sentinel-fim-engine"
+version = "0.1.0"
+description = "Tự động đánh giá cảnh báo Wazuh FIM bằng VirusTotal, mô hình AI nhỏ và Claude"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.13,<2",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

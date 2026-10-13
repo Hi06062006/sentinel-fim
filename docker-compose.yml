@@ -1,0 +1,69 @@
+# Sentinel-FIM: n8n + engine phân tích + Ollama (mô hình AI nhỏ).
+# Wazuh chạy riêng (VM/OVA hoặc wazuh-docker single-node) — xem docs/02-trien-khai.md.
+#
+#   cp .env.example .env   # rồi điền khoá API, token
+#   docker compose up -d --build
+#   docker compose --profile setup run --rm ollama-pull   # tải mô hình nhỏ lần đầu
+
+name: sentinel-fim
+
+services:
+  engine:
+    build: ./engine
+    env_file: .env
+    environment:
+      SENTINEL_DB_PATH: /data/sentinel.db
+      OLLAMA_URL: http://ollama:11434
+    volumes:
+      - engine-data:/data
+    # Chỉ mở cho máy host; n8n gọi engine qua mạng nội bộ của compose.
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-2.42.7}
+    environment:
+      GENERIC_TIMEZONE: Asia/Ho_Chi_Minh
+      TZ: Asia/Ho_Chi_Minh
+      # URL công khai của webhook (n8n 2.x dùng N8N_WEBHOOK_URL; WEBHOOK_URL cho bản cũ hơn)
+      N8N_WEBHOOK_URL: ${N8N_PUBLIC_URL}
+      WEBHOOK_URL: ${N8N_PUBLIC_URL}
+      # Workflow đọc URL/token của engine và URL Wazuh API từ biến môi trường.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      SENTINEL_ENGINE_URL: http://engine:8000
+      SENTINEL_ENGINE_TOKEN: ${SENTINEL_API_TOKEN}
+      WAZUH_API_URL: ${WAZUH_API_URL}
+      # Lab dùng HTTP trong mạng nội bộ; triển khai thật phải đặt sau reverse proxy HTTPS và bỏ dòng này.
+      N8N_SECURE_COOKIE: "false"
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    depends_on:
+      - engine
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+  # Tác vụ chạy một lần để tải mô hình: docker compose --profile setup run --rm ollama-pull
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "${OLLAMA_MODEL:-qwen2.5:3b}"]
+    depends_on:
+      - ollama
+    profiles: ["setup"]
+
+volumes:
+  engine-data:
+  n8n-data:
+  ollama-data:

@@ -1,0 +1,67 @@
+#!/var/ossec/framework/python/bin/python3
+# Sentinel-FIM: integration tùy biến của Wazuh, đẩy alert (JSON) sang webhook n8n.
+#
+# Wazuh integratord gọi script với các tham số:
+#   argv[1] = đường dẫn file chứa alert JSON
+#   argv[2] = <api_key> trong ossec.conf  -> dùng làm token header X-Sentinel-Token
+#   argv[3] = <hook_url> trong ossec.conf -> URL webhook n8n
+# Cài đặt: /var/ossec/integrations/custom-n8n, chown root:wazuh, chmod 750.
+
+import json
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.request
+
+LOG_FILE = "/var/ossec/logs/integrations.log"
+TIMEOUT_SECONDS = 10
+RETRIES = 3
+
+
+def log(message: str) -> None:
+    line = f"{time.strftime('%Y/%m/%d %H:%M:%S')} custom-n8n: {message}\n"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as fh:
+            fh.write(line)
+    except OSError:
+        sys.stderr.write(line)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 4:
+        log(f"thiếu tham số, nhận được {argv[1:]}")
+        return 2
+    alert_file, token, hook_url = argv[1], argv[2], argv[3]
+
+    with open(alert_file, encoding="utf-8") as fh:
+        alert = json.load(fh)
+
+    body = json.dumps(alert).encode("utf-8")
+    request = urllib.request.Request(
+        hook_url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", "X-Sentinel-Token": token},
+    )
+    # Dùng chứng chỉ hệ thống. Nếu n8n dùng chứng chỉ tự ký, hãy thêm CA vào trust store
+    # thay vì tắt kiểm tra TLS.
+    context = ssl.create_default_context()
+
+    for attempt in range(1, RETRIES + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS, context=context) as resp:
+                log(f"alert {alert.get('id')} rule {alert.get('rule', {}).get('id')} -> HTTP {resp.status}")
+                return 0
+        except urllib.error.HTTPError as exc:
+            log(f"alert {alert.get('id')} -> HTTP {exc.code} (lần {attempt})")
+            if exc.code < 500:
+                return 1
+        except (urllib.error.URLError, TimeoutError) as exc:
+            log(f"alert {alert.get('id')} -> lỗi kết nối {exc} (lần {attempt})")
+        time.sleep(2 ** attempt)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

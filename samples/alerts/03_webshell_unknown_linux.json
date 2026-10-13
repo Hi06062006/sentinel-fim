@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-10-13T08:31:02.789+0000",
+  "rule": {
+    "level": 12,
+    "description": "Sentinel-FIM: New script file in web root (possible web shell).",
+    "id": "100130",
+    "firedtimes": 1,
+    "mail": false,
+    "groups": ["sentinel_fim", "syscheck", "syscheck_entry_added", "web_shell"],
+    "mitre": {"id": ["T1505.003"], "tactic": ["Persistence"], "technique": ["Web Shell"]}
+  },
+  "agent": {"id": "003", "name": "web-lab-03", "ip": "192.168.56.103"},
+  "manager": {"name": "wazuh-manager"},
+  "id": "1792139462.3003",
+  "full_log": "File '/var/www/html/uploads/thumb.php' added\nMode: whodata\n",
+  "syscheck": {
+    "path": "/var/www/html/uploads/thumb.php",
+    "mode": "whodata",
+    "event": "added",
+    "size_after": "412",
+    "uname_after": "www-data",
+    "md5_after": "0d9a3b4e2f1c8a7b6c5d4e3f2a1b0c9d",
+    "sha1_after": "5f1e2d3c4b5a69788796a5b4c3d2e1f0a9b8c7d6",
+    "sha256_after": "9c1f6b0d3e2a4f5b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b",
+    "audit": {
+      "user": {"id": "33", "name": "www-data"},
+      "process": {"id": "1880", "name": "/usr/sbin/php-fpm8.2"}
+    }
+  },
+  "decoder": {"name": "syscheck_new_entry"},
+  "location": "syscheck"
+}

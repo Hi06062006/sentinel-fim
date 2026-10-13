@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-13T09:02:10.000+0000",
+  "rule": {
+    "level": 5,
+    "description": "File added to the system.",
+    "id": "554",
+    "firedtimes": 3,
+    "mail": false,
+    "groups": ["ossec", "syscheck", "syscheck_entry_added", "syscheck_file"]
+  },
+  "agent": {"id": "002", "name": "win10-lab-02", "ip": "192.168.56.102"},
+  "manager": {"name": "wazuh-manager"},
+  "id": "1792141330.5005",
+  "full_log": "File 'c:\\users\\lan\\downloads\\de-cuong-mon-hoc.pdf' added\nMode: realtime\n",
+  "syscheck": {
+    "path": "c:\\users\\lan\\downloads\\de-cuong-mon-hoc.pdf",
+    "mode": "realtime",
+    "event": "added",
+    "size_after": "245760",
+    "md5_after": "8f14e45fceea167a5a36dedd4bea2543",
+    "sha1_after": "c1dfd96eea8cc2b62785275bca38ac261256e278",
+    "sha256_after": "c4ca4238a0b923820dcc509a6f75849bc4ca4238a0b923820dcc509a6f75849b"
+  },
+  "decoder": {"name": "syscheck_new_entry"},
+  "location": "syscheck"
+}

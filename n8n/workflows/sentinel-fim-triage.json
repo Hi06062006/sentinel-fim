@@ -1,0 +1,293 @@
+{
+  "name": "Sentinel-FIM · Triage (Wazuh → VirusTotal → AI → Gmail)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Sentinel-FIM · Triage\n1. **Wazuh** đẩy alert FIM qua integration `custom-n8n` (header `X-Sentinel-Token`).\n2. **L1** – engine tra **VirusTotal** theo hash, chấm điểm theo luật, ánh xạ **MITRE ATT&CK**, hỏi **mô hình AI nhỏ** (Ollama).\n3. **L2** – chỉ sự cố được leo thang mới gọi **Claude** (tiết kiệm chi phí).\n4. Gửi **Gmail** cho SOC kèm nút *Cách ly* / *Dương tính giả* (human-in-the-loop).",
+        "height": 220,
+        "width": 760,
+        "color": 7
+      },
+      "id": "3f352b4a-bc86-54cd-9fce-ae0cd3670ccb",
+      "name": "Ghi chú",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sentinel-fim",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "ea84261a-9b35-5357-ae9c-07c885017feb",
+      "name": "Wazuh alert (webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "2dd278cb-0228-500d-8ffa-8f0ae7566636",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Sentinel - Wazuh webhook token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SENTINEL_ENGINE_URL }}/v1/triage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Sentinel-Token",
+              "value": "={{ $env.SENTINEL_ENGINE_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "7936fa9c-7e08-5f5c-8e79-264b91fc3694",
+      "name": "L1 Triage: VirusTotal + AI nhỏ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0b2a0c09-8191-52ec-af18-cc89444b2a5d",
+              "leftValue": "={{ $json.escalate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "69aa85e8-392f-59dc-984d-19f368d53b1a",
+      "name": "Cần Claude phân tích?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SENTINEL_ENGINE_URL }}/v1/incidents/{{ $json.incident_id }}/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Sentinel-Token",
+              "value": "={{ $env.SENTINEL_ENGINE_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "1d4055e9-ce0f-572a-b591-c1ebccc62fea",
+      "name": "L2 Claude: báo cáo sự cố",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "61b5ab10-4de3-57e8-96a4-ccd3920fa98c",
+              "leftValue": "={{ $json.notify }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "615f385e-a0c8-593a-b90b-eba82434bc10",
+      "name": "Cần thông báo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.email.to }}",
+        "subject": "={{ $json.email.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.email.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a848c073-60bc-5a69-9697-e49d72190494",
+      "name": "Gửi email cảnh báo (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        980,
+        0
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "1cee9049-914e-5903-b5f8-f379c0102fae",
+      "name": "Không gửi (mức thấp / trùng lặp)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Wazuh alert (webhook)": {
+      "main": [
+        [
+          {
+            "node": "L1 Triage: VirusTotal + AI nhỏ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L1 Triage: VirusTotal + AI nhỏ": {
+      "main": [
+        [
+          {
+            "node": "Cần Claude phân tích?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cần Claude phân tích?": {
+      "main": [
+        [
+          {
+            "node": "L2 Claude: báo cáo sự cố",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cần thông báo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "L2 Claude: báo cáo sự cố": {
+      "main": [
+        [
+          {
+            "node": "Gửi email cảnh báo (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cần thông báo?": {
+      "main": [
+        [
+          {
+            "node": "Gửi email cảnh báo (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Không gửi (mức thấp / trùng lặp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "sentinelFim": "triage"
+  }
+}

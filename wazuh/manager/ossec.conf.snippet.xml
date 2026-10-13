@@ -1,0 +1,34 @@
+<!--
+  Sentinel-FIM: thêm khối dưới đây vào /var/ossec/etc/ossec.conf trên Wazuh MANAGER
+  (bên trong <ossec_config>), rồi `systemctl restart wazuh-manager`.
+-->
+<ossec_config>
+
+  <!-- Đẩy alert FIM sang n8n. hook_url là URL "Production" của node Webhook trong n8n.
+       api_key được gửi dưới dạng header X-Sentinel-Token: phải trùng với credential
+       "Header Auth" của node Webhook. -->
+  <integration>
+    <name>custom-n8n</name>
+    <hook_url>http://N8N_HOST:5678/webhook/sentinel-fim</hook_url>
+    <api_key>CHANGE_ME_WAZUH_WEBHOOK_TOKEN</api_key>
+    <group>syscheck</group>
+    <level>5</level>
+    <alert_format>json</alert_format>
+  </integration>
+
+  <!-- BASELINE để so sánh trong phần đánh giá: integration VirusTotal có sẵn của Wazuh.
+       Chỉ bật khi đo baseline (tắt custom-n8n), tránh tiêu tốn hạn mức API gấp đôi. -->
+  <!--
+  <integration>
+    <name>virustotal</name>
+    <api_key>VT_API_KEY</api_key>
+    <group>syscheck</group>
+    <alert_format>json</alert_format>
+  </integration>
+  -->
+
+  <!-- Active response "sentinel-quarantine" KHÔNG gắn với rule nào: nó chỉ chạy khi analyst
+       duyệt trong email và n8n gọi Wazuh API (PUT /active-response, command "!sentinel-quarantine").
+       Không cần khai báo <command> khi gọi qua API bằng tiền tố "!". -->
+
+</ossec_config>

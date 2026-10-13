@@ -1,0 +1,138 @@
+<!--
+  Sentinel-FIM: rule tùy biến cho Wazuh 4.x
+  Cài đặt: /var/ossec/etc/rules/sentinel_fim_rules.xml (owner wazuh:wazuh, 660)
+           rồi `systemctl restart wazuh-manager`.
+  Dải ID dành cho rule người dùng: 100000-120000. Rule ở đây dùng 100100-100199.
+
+  Rule gốc của Wazuh: 550 = file bị sửa, 553 = file bị xoá, 554 = file mới,
+                      750/752 = giá trị registry bị sửa/mới.
+  Mỗi rule gắn mã MITRE ATT&CK để alert đến n8n đã có sẵn ngữ cảnh chiến thuật.
+-->
+<group name="sentinel_fim,syscheck,">
+
+  <!-- ===================== Persistence trên Windows ===================== -->
+  <rule id="100110" level="12">
+    <if_sid>554</if_sid>
+    <field name="file" type="pcre2">(?i)\\start menu\\programs\\startup\\</field>
+    <description>Sentinel-FIM: File added to a Windows Startup folder: $(file)</description>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <rule id="100111" level="12">
+    <if_sid>750, 752</if_sid>
+    <field name="file" type="pcre2">(?i)\\CurrentVersion\\Run(Once)?(Services)?</field>
+    <description>Sentinel-FIM: Registry Run/RunOnce value created or changed: $(file)</description>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <!-- ===================== Web shell ===================== -->
+  <rule id="100130" level="12">
+    <if_sid>554</if_sid>
+    <field name="file" type="pcre2">(?i)^(/var/www|/srv/www|/usr/share/nginx/html|c:\\inetpub\\wwwroot).*\.(php\d?|phtml|phar|jsp|jspx|asp|aspx|ashx|cgi)$</field>
+    <description>Sentinel-FIM: New script file in web root (possible web shell): $(file)</description>
+    <mitre>
+      <id>T1505.003</id>
+    </mitre>
+    <group>web_shell,</group>
+  </rule>
+
+  <!-- ===================== Persistence / leo thang trên Linux ===================== -->
+  <rule id="100140" level="12">
+    <if_sid>550, 554</if_sid>
+    <field name="file" type="pcre2">/\.ssh/authorized_keys2?$</field>
+    <description>Sentinel-FIM: SSH authorized_keys created or modified: $(file)</description>
+    <mitre>
+      <id>T1098.004</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <rule id="100141" level="10">
+    <if_sid>550</if_sid>
+    <field name="file" type="pcre2">^/etc/(passwd|shadow|group)$</field>
+    <description>Sentinel-FIM: Local account database modified: $(file)</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>account_changed,</group>
+  </rule>
+
+  <rule id="100142" level="12">
+    <if_sid>550, 554</if_sid>
+    <field name="file" type="pcre2">^/etc/sudoers(\.d/.*)?$</field>
+    <description>Sentinel-FIM: sudo configuration changed: $(file)</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>privilege_escalation,</group>
+  </rule>
+
+  <rule id="100143" level="10">
+    <if_sid>550, 554</if_sid>
+    <field name="file" type="pcre2">^(/etc/cron|/var/spool/cron)</field>
+    <description>Sentinel-FIM: Cron job created or modified: $(file)</description>
+    <mitre>
+      <id>T1053.003</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <rule id="100144" level="10">
+    <if_sid>554</if_sid>
+    <field name="file" type="pcre2">^(/etc/systemd/system|/lib/systemd/system|/usr/lib/systemd/system)/.*\.(service|timer)$</field>
+    <description>Sentinel-FIM: New systemd unit: $(file)</description>
+    <mitre>
+      <id>T1543.002</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <rule id="100145" level="12">
+    <if_sid>550, 554</if_sid>
+    <field name="file">/etc/ld.so.preload</field>
+    <description>Sentinel-FIM: /etc/ld.so.preload changed (dynamic linker hijacking)</description>
+    <mitre>
+      <id>T1574.006</id>
+    </mitre>
+    <group>persistence,</group>
+  </rule>
+
+  <!-- ===================== Giả dạng / ransomware ===================== -->
+  <rule id="100150" level="10">
+    <if_sid>554</if_sid>
+    <field name="file" type="pcre2">(?i)\.(pdf|docx?|xlsx?|pptx?|jpe?g|png|txt|zip|rar)\.(exe|scr|com|pif|bat|cmd|js|vbs|hta|lnk|sh)$</field>
+    <description>Sentinel-FIM: Executable with a double extension: $(file)</description>
+    <mitre>
+      <id>T1036.007</id>
+    </mitre>
+    <group>masquerading,</group>
+  </rule>
+
+  <rule id="100160" level="10">
+    <if_sid>550, 554</if_sid>
+    <field name="file" type="pcre2">(?i)\.(locked|encrypted|crypt|crypted|wncry|wnry|lockbit|ryk|akira)$</field>
+    <description>Sentinel-FIM: File with a ransomware-like extension: $(file)</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+    <group>ransomware,</group>
+  </rule>
+
+  <!-- Nhiều file bị sửa trong thời gian ngắn trên cùng một agent: dấu hiệu mã hoá hàng loạt. -->
+  <rule id="100161" level="14" frequency="20" timeframe="60">
+    <if_matched_sid>550</if_matched_sid>
+    <same_location />
+    <description>Sentinel-FIM: Mass file modification on one agent (possible ransomware)</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+    <group>ransomware,</group>
+  </rule>
+
+</group>

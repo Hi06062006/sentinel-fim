@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-10-13T08:20:11.456+0000",
+  "rule": {
+    "level": 12,
+    "description": "Sentinel-FIM: File added to a Windows Startup folder.",
+    "id": "100110",
+    "firedtimes": 1,
+    "mail": false,
+    "groups": ["sentinel_fim", "syscheck", "syscheck_entry_added", "persistence"],
+    "mitre": {"id": ["T1547.001"], "tactic": ["Persistence", "Privilege Escalation"], "technique": ["Registry Run Keys / Startup Folder"]}
+  },
+  "agent": {"id": "002", "name": "win10-lab-02", "ip": "192.168.56.102"},
+  "manager": {"name": "wazuh-manager"},
+  "id": "1792138811.2002",
+  "full_log": "File 'c:\\users\\lan\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup\\tasksche.exe' added\nMode: whodata\n",
+  "syscheck": {
+    "path": "c:\\users\\lan\\appdata\\roaming\\microsoft\\windows\\start menu\\programs\\startup\\tasksche.exe",
+    "mode": "whodata",
+    "event": "added",
+    "size_after": "3514368",
+    "uname_after": "LAN",
+    "md5_after": "db349b97c37d22f5ea1d1841e3c89eb4",
+    "sha1_after": "e889544aff85ffaf8b0d0da705105dee7c97fe26",
+    "sha256_after": "ed01ebfbc9eb5bbea545af4d01bf5f1071661840480439c6e5babe8e080e41aa",
+    "audit": {
+      "user": {"id": "S-1-5-21-1000", "name": "lan"},
+      "process": {"id": "5120", "name": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"}
+    }
+  },
+  "decoder": {"name": "syscheck_new_entry"},
+  "location": "syscheck"
+}

@@ -1,0 +1,448 @@
+{
+  "name": "Sentinel-FIM · Quyết định của analyst (cách ly / dương tính giả)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Sentinel-FIM · Quyết định của analyst\nLink trong email chỉ mở **trang xác nhận** (GET) – bộ lọc thư tự bấm thử link sẽ không gây ra hành động. Hành động chỉ chạy khi analyst bấm **Xác nhận** (POST).\n\nToken HMAC có hạn dùng, dùng một lần, do engine kiểm tra.",
+        "height": 200,
+        "width": 760,
+        "color": 7
+      },
+      "id": "3f352b4a-bc86-54cd-9fce-ae0cd3670ccb",
+      "name": "Ghi chú",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "sentinel-action",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "812fd0a3-5d3a-52f7-a79b-bde4750b1787",
+      "name": "Link trong email (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f1eed290-d72d-59f6-837e-3fe0f58ed32f"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SENTINEL_ENGINE_URL }}/v1/actions/confirm",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "incident",
+              "value": "={{ $json.query.incident }}"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.query.action }}"
+            },
+            {
+              "name": "token",
+              "value": "={{ $json.query.token }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Sentinel-Token",
+              "value": "={{ $env.SENTINEL_ENGINE_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "72fc933b-b1bc-5c7c-be12-e95a661b0f12",
+      "name": "Engine: kiểm tra link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "9ee96a5f-66c3-5743-bf82-264d34eb2874",
+      "name": "Trang xác nhận",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sentinel-action",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3812f7a2-3804-581f-92b9-7d936d42cbf6",
+      "name": "Nút Xác nhận (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "cf8bc21e-0d6f-56b7-948f-434ef15dd54b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SENTINEL_ENGINE_URL }}/v1/actions/execute",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Sentinel-Token",
+              "value": "={{ $env.SENTINEL_ENGINE_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ incident: $json.body.incident, action: $json.body.action, token: $json.body.token }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "405e6150-1956-520d-9bbb-4f1736b02fc4",
+      "name": "Engine: ghi nhận quyết định",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "d8e8f919-b5db-5992-8c99-6c2f13f26f7c",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "4e9207dc-2a3d-5a55-8638-c6192190bc7a",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "quarantine",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fc20a25d-cddf-521b-a178-c0415f40db38",
+      "name": "Cách ly file?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WAZUH_API_URL }}/security/user/authenticate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {
+          "timeout": 60000,
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "3bc6dc48-61a3-5cb5-bbaa-3532f97afcb3",
+      "name": "Wazuh API: lấy JWT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        200
+      ],
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "Wazuh API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.WAZUH_API_URL }}/active-response",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "agents_list",
+              "value": "={{ $('Engine: ghi nhận quyết định').item.json.wazuh.agent_id }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.data.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Engine: ghi nhận quyết định').item.json.wazuh.body) }}",
+        "options": {
+          "timeout": 60000,
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "69401c8a-125b-525e-ab72-9d6233389c25",
+      "name": "Wazuh API: chạy active response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ '<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\"><title>Sentinel-FIM</title></head><body style=\"font-family:Segoe UI,Arial,sans-serif;max-width:640px;margin:40px auto;padding:0 16px\"><h2>Đã gửi lệnh cách ly</h2><p>Sự cố ' + $('Engine: ghi nhận quyết định').item.json.wazuh.body.alert.data.sentinel.incident_id + ': agent nhận lệnh = ' + Number($json.data?.total_affected_items ?? 0) + ', thất bại = ' + Number($json.data?.total_failed_items ?? 0) + '.</p><p>Kiểm tra kết quả trong <code>logs/active-responses.log</code> trên agent.</p></body></html>' }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "321999ec-3830-5cfe-bd94-9ce84324a3f3",
+      "name": "Kết quả cách ly",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\"><title>Sentinel-FIM</title></head><body style=\"font-family:Segoe UI,Arial,sans-serif;max-width:640px;margin:40px auto;padding:0 16px\"><h2>Không gọi được Wazuh API</h2><p>Quyết định đã được ghi nhận nhưng lệnh cách ly chưa được gửi. Hãy xem lịch sử thực thi trong n8n và cách ly thủ công.</p></body></html>",
+        "options": {
+          "responseCode": 502,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "eff624c5-5690-5d8c-9ae0-8bfbb376e9a0",
+      "name": "Lỗi Wazuh API",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "5f4e6fd1-d48e-53ad-b0ea-f52a57c60065",
+      "name": "Kết quả",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Link trong email (GET)": {
+      "main": [
+        [
+          {
+            "node": "Engine: kiểm tra link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Engine: kiểm tra link": {
+      "main": [
+        [
+          {
+            "node": "Trang xác nhận",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nút Xác nhận (POST)": {
+      "main": [
+        [
+          {
+            "node": "Engine: ghi nhận quyết định",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Engine: ghi nhận quyết định": {
+      "main": [
+        [
+          {
+            "node": "Cách ly file?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cách ly file?": {
+      "main": [
+        [
+          {
+            "node": "Wazuh API: lấy JWT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Kết quả",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wazuh API: lấy JWT": {
+      "main": [
+        [
+          {
+            "node": "Wazuh API: chạy active response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lỗi Wazuh API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wazuh API: chạy active response": {
+      "main": [
+        [
+          {
+            "node": "Kết quả cách ly",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lỗi Wazuh API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "sentinelFim": "action"
+  }
+}

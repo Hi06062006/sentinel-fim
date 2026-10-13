@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-10-13T08:15:30.123+0000",
+  "rule": {
+    "level": 5,
+    "description": "File added to the system.",
+    "id": "554",
+    "firedtimes": 1,
+    "mail": false,
+    "groups": ["ossec", "syscheck", "syscheck_entry_added", "syscheck_file"]
+  },
+  "agent": {"id": "001", "name": "ubuntu-lab-01", "ip": "192.168.56.101"},
+  "manager": {"name": "wazuh-manager"},
+  "id": "1792138530.1001",
+  "full_log": "File '/home/student/Downloads/eicar.com' added\nMode: whodata\n",
+  "syscheck": {
+    "path": "/home/student/Downloads/eicar.com",
+    "mode": "whodata",
+    "event": "added",
+    "size_after": "68",
+    "perm_after": "rw-rw-r--",
+    "uid_after": "1000",
+    "gid_after": "1000",
+    "uname_after": "student",
+    "gname_after": "student",
+    "md5_after": "44d88612fea8a8f36de82e1278abb02f",
+    "sha1_after": "3395856ce81f2b7382dee72602f798b642f14140",
+    "sha256_after": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+    "audit": {
+      "user": {"id": "1000", "name": "student"},
+      "process": {"id": "4242", "name": "/usr/bin/wget", "ppid": "4100"}
+    }
+  },
+  "decoder": {"name": "syscheck_new_entry"},
+  "location": "syscheck"
+}

@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# Sentinel-FIM active response: CÁCH LY (không xoá) file đã được analyst duyệt.
+#
+# - Chỉ chạy khi analyst bấm "Xác nhận" trong email -> n8n gọi Wazuh API
+#   PUT /active-response với command "!sentinel-quarantine".
+# - Xác minh SHA256 trước khi di chuyển: nếu file đã bị thay bằng nội dung khác
+#   kể từ lúc cảnh báo (TOCTOU) thì huỷ, tránh cách ly nhầm file hợp lệ.
+# - Di chuyển file vào <wazuh>/quarantine, bỏ quyền thực thi, ghi metadata để
+#   có thể khôi phục và phục vụ điều tra (giữ bằng chứng thay vì xoá).
+#
+# Linux : /var/ossec/active-response/bin/sentinel-quarantine (root:wazuh, 750)
+# Windows: đóng gói bằng PyInstaller thành sentinel-quarantine.exe, đặt vào
+#          C:\Program Files (x86)\ossec-agent\active-response\bin\
+
+import datetime
+import hashlib
+import json
+import os
+import shutil
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
+WAZUH_HOME = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+LOG_FILE = os.path.join(WAZUH_HOME, "logs", "active-responses.log")
+QUARANTINE_DIR = os.path.join(WAZUH_HOME, "quarantine")
+
+
+def log(message):
+    stamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    with open(LOG_FILE, "a", encoding="utf-8") as fh:
+        fh.write(f"{stamp} sentinel-quarantine: {message}\n")
+
+
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def read_message():
+    line = sys.stdin.readline()
+    return json.loads(line) if line else {}
+
+
+def confirm_with_execd():
+    """Giao thức Wazuh >= 4.2: gửi check_keys và chờ execd trả lời continue/abort."""
+    keys_msg = {
+        "version": 1,
+        "origin": {"name": "sentinel-quarantine", "module": "active-response"},
+        "command": "check_keys",
+        "parameters": {"keys": []},
+    }
+    sys.stdout.write(json.dumps(keys_msg) + "\n")
+    sys.stdout.flush()
+    return read_message().get("command") == "continue"
+
+
+def target_from(alert):
+    sentinel = (alert.get("data") or {}).get("sentinel") or {}
+    syscheck = alert.get("syscheck") or {}
+    path = sentinel.get("path") or syscheck.get("path")
+    sha256 = (sentinel.get("sha256") or syscheck.get("sha256_after") or "").lower()
+    return path, sha256, sentinel.get("incident_id", "")
+
+
+def main():
+    message = read_message()
+    if message.get("command") != "add":
+        return 0
+    if not confirm_with_execd():
+        log("execd abort")
+        return 0
+
+    alert = (message.get("parameters") or {}).get("alert") or {}
+    path, expected, incident = target_from(alert)
+    if not path or len(expected) != 64:
+        log(f"[{incident}] thiếu đường dẫn hoặc SHA256, bỏ qua")
+        return 1
+    if os.path.islink(path) or not os.path.isfile(path):
+        log(f"[{incident}] {path!r} không tồn tại hoặc không phải file thường, bỏ qua")
+        return 1
+
+    actual = sha256_of(path)
+    if actual != expected:
+        log(f"[{incident}] SHA256 không khớp cho {path!r} ({actual} != {expected}), huỷ cách ly")
+        return 1
+
+    os.makedirs(QUARANTINE_DIR, mode=0o700, exist_ok=True)
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = os.path.join(QUARANTINE_DIR, f"{stamp}_{actual[:16]}.quarantine")
+    shutil.move(path, dest)
+    os.chmod(dest, 0o400)
+    with open(dest + ".json", "w", encoding="utf-8") as fh:
+        json.dump({"incident_id": incident, "original_path": path, "sha256": actual,
+                   "quarantined_at": stamp}, fh, ensure_ascii=False, indent=2)
+    log(f"[{incident}] đã cách ly {path!r} -> {dest!r}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as exc:  # không để traceback mất dấu: ghi vào log của Wazuh
+        log(f"lỗi: {exc!r}")
+        sys.exit(1)
